@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HM-10 LED Control</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        button { padding: 15px 30px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 5px; border: none; }
+        #connectBtn { background-color: #007bff; color: white; }
+        #onBtn { background-color: #28a745; color: white; }
+        #offBtn { background-color: #dc3545; color: white; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Arduino HM-10 Control</h1>
+    
+    <button id="connectBtn">Scan & Connect</button>
+    <br><br>
+    <button id="onBtn" disabled>LED ON</button>
+    <button id="offBtn" disabled>LED OFF</button>
+    
+    <div id="status">Status: Disconnected</div>
+
+    <script>
+        // Standard HM-10 UUIDs
+        const serviceUUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+        const charUUID    = "0000ffe1-0000-1000-8000-00805f9b34fb";
+
+        let device;
+        let characteristic;
+
+        const connectBtn = document.getElementById('connectBtn');
+        const onBtn = document.getElementById('onBtn');
+        const offBtn = document.getElementById('offBtn');
+        const statusDiv = document.getElementById('status');
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                statusDiv.innerText = "Status: Scanning...";
+                
+                // 1. Request Bluetooth Device
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [serviceUUID] }] 
+                    // Or use acceptAllDevices: true (but optional_services must be listed)
+                });
+
+                statusDiv.innerText = "Status: Connecting...";
+                
+                // 2. Connect to the GATT Server
+                const server = await device.gatt.connect();
+
+                // 3. Get the Service
+                const service = await server.getPrimaryService(serviceUUID);
+
+                // 4. Get the Characteristic
+                characteristic = await service.getCharacteristic(charUUID);
+
+                // Connection Successful
+                statusDiv.innerText = "Status: Connected to " + device.name;
+                onBtn.disabled = false;
+                offBtn.disabled = false;
+                connectBtn.style.display = 'none';
+
+                // Handle Disconnection
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "Error: " + error;
+            }
+        });
+
+        // Function to send data
+        async function sendData(data) {
+            if (!characteristic) return;
+            // Convert string to Uint8Array for BLE
+            const encoder = new TextEncoder();
+            await characteristic.writeValue(encoder.encode(data));
+        }
+
+        onBtn.addEventListener('click', () => sendData("1"));
+        offBtn.addEventListener('click', () => sendData("0"));
+
+        function onDisconnected(event) {
+            statusDiv.innerText = "Status: Disconnected";
+            onBtn.disabled = true;
+            offBtn.disabled = true;
+            connectBtn.style.display = 'inline-block';
+        }
+    </script>
+
+</body>
+</html>
